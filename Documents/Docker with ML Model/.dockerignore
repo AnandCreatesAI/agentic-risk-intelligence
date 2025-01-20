@@ -1,0 +1,37 @@
+<!-- The .dockerignore file is a configuration file used in Docker to specify files and directories that should be excluded when building a Docker image. It works similarly to a .gitignore file in Git and helps reduce the size of the Docker image by ignoring unnecessary files during the docker build process. -->
+
+<!-- Purpose of .dockerignore
+
+    Reduce Image Size:
+    By excluding files that are not required for the application to run (e.g., logs, local development files), the Docker image becomes smaller.
+
+    Improve Build Speed:
+    Fewer files mean a faster image build process, as Docker doesn’t have to copy unnecessary files into the image.
+
+    Avoid Sensitive Data in Images:
+    Prevents sensitive files (e.g., API keys, credentials, .env files) from being copied into the Docker image.
+
+    Simplify Image Contents:
+    Excludes clutter to ensure that the image contains only what’s needed for the application. -->
+
+<!-- Add file or directory patterns to exclude them -->
+<!-- Ignore python cache files -->
+__pychache__/
+*.pyc
+*.ipynb
+*.ipynb_checkpoints
+<!-- Ignore environment files -->
+.env
+
+<!-- Ignore log files -->
+*.log
+
+<!-- Ignore git repository files -->
+.git
+.gitignore
+
+<!-- Ignore temporary files -->
+tmp/
+
+<!-- Ignore docker related files that are not needed -->
+docker-compose.override.yml
