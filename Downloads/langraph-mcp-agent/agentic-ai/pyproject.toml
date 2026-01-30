@@ -1,0 +1,139 @@
+# pyproject.toml
+# Modern Python packaging configuration
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-risk-intelligence"
+version = "1.0.0"
+description = "Enterprise Agentic Risk Intelligence Platform using LangGraph"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+keywords = [
+    "langgraph",
+    "langchain",
+    "agents",
+    "risk-assessment",
+    "compliance",
+    "mcp",
+    "multi-agent"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "langgraph>=0.0.40",
+    "langchain>=0.1.0",
+    "langchain-core>=0.1.0",
+    "langsmith>=0.1.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+# LLM-powered explanations
+llm = [
+    "langchain-openai>=0.0.5",
+    "openai>=1.0.0",
+]
+# Real MCP server
+mcp = [
+    "mcp>=0.1.0",
+]
+# Development tools
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+]
+# All optional dependencies
+all = [
+    "agentic-risk-intelligence[llm,mcp,dev]",
+]
+
+[project.scripts]
+# CLI commands
+risk-assess = "main:main"
+risk-server = "mcp.real_mcp_server:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/agentic-risk-intelligence"
+Documentation = "https://github.com/yourusername/agentic-risk-intelligence#readme"
+Repository = "https://github.com/yourusername/agentic-risk-intelligence"
+Issues = "https://github.com/yourusername/agentic-risk-intelligence/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agents*", "a2a*", "mcp*", "memory*", "workflows*", "observability*"]
+
+# ============================================================================
+# Tool Configurations
+# ============================================================================
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+    | \.venv
+    | __pycache__
+    | \.ipynb_checkpoints
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+exclude = [
+    "venv",
+    "__pycache__",
+    ".ipynb_checkpoints",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["agents", "a2a", "mcp", "memory", "workflows", "observability"]
+omit = ["*/__pycache__/*", "*/tests/*"]

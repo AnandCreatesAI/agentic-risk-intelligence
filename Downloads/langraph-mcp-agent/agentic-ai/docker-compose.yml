@@ -1,0 +1,119 @@
+# docker-compose.yml
+# Orchestration for Agentic Risk Intelligence Platform
+
+version: '3.8'
+
+services:
+  # ========================================
+  # Main Risk Assessment Service
+  # ========================================
+  risk-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: risk-engine
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+      # LangSmith (optional)
+      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-false}
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
+      - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-agentic-risk-intelligence}
+      # OpenAI (optional, for LLM explanations)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      # Mount for development (remove in production)
+      - ./logs:/app/logs
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "from workflows.risk_graph import workflow; print('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - risk-network
+
+  # ========================================
+  # MCP Server (Real MCP Protocol)
+  # ========================================
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: mcp-server
+    command: ["python", "mcp/real_mcp_server.py"]
+    environment:
+      - PYTHONUNBUFFERED=1
+    # MCP uses stdio, so no ports needed for basic mode
+    # For HTTP mode, uncomment:
+    # ports:
+    #   - "8001:8001"
+    restart: unless-stopped
+    networks:
+      - risk-network
+
+  # ========================================
+  # API Gateway (Optional - for REST API)
+  # ========================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: risk-api
+    ports:
+      - "8080:8080"
+    environment:
+      - RISK_ENGINE_URL=http://risk-engine:8000
+    depends_on:
+      - risk-engine
+    networks:
+      - risk-network
+    profiles:
+      - api  # Only start with: docker-compose --profile api up
+
+  # ========================================
+  # Redis (Optional - for caching/queuing)
+  # ========================================
+  redis:
+    image: redis:7-alpine
+    container_name: risk-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - risk-network
+    profiles:
+      - cache  # Only start with: docker-compose --profile cache up
+
+  # ========================================
+  # PostgreSQL (Optional - for audit logs)
+  # ========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: risk-postgres
+    environment:
+      - POSTGRES_USER=risk
+      - POSTGRES_PASSWORD=risk_secret
+      - POSTGRES_DB=risk_audit
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - risk-network
+    profiles:
+      - database  # Only start with: docker-compose --profile database up
+
+networks:
+  risk-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  postgres-data:
