@@ -1,70 +1,31 @@
-# agents/explainer.py
-# Explanation Agent
-# Converts structured risk signals into human-readable explanations.
-# Ensures auditability and builds trust with stakeholders.
-
 from typing import Dict, Any, List
 from datetime import datetime
 
 
 def explanation_node(state: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Generates human-readable explanation of the risk decision.
-    
-    This agent creates:
-    - Executive summary
-    - Detailed evidence trail
-    - Confidence assessment
-    - Recommended actions
-    
-    Essential for:
-    - Regulatory compliance
-    - Audit trails
-    - Human review
-    - Stakeholder communication
-    
-    Args:
-        state: Current workflow state with decision
-        
-    Returns:
-        Updated state with explanation
-    """
     decision = state.get("decision", {})
     signals = state.get("signals", [])
     specialist_results = state.get("specialist_results", {})
     input_data = state.get("input", {})
-    
-    # ========================================
-    # Build Executive Summary
-    # ========================================
+
     risk_level = decision.get("risk_level", "UNKNOWN")
     risk_score = decision.get("risk_score", 0)
     final_decision = decision.get("decision", "UNKNOWN")
-    
+    decision_reason = decision.get("decision_reason", "")
+
     executive_summary = _generate_executive_summary(
-        input_data, risk_level, risk_score, final_decision, decision.get("decision_reason", "")
+        input_data, risk_level, risk_score, final_decision, decision_reason
     )
-    
-    # ========================================
-    # Build Evidence Trail
-    # ========================================
+
     evidence_trail = _build_evidence_trail(signals, specialist_results)
-    
-    # ========================================
-    # Calculate Confidence
-    # ========================================
-    confidence_assessment = _assess_confidence(signals, specialist_results)
-    
-    # ========================================
-    # Generate Recommendations
-    # ========================================
+    confidence = _assess_confidence(signals, specialist_results)
     recommendations = _generate_recommendations(
-        final_decision, risk_level, specialist_results, decision.get("contributing_factors", [])
+        final_decision,
+        risk_level,
+        specialist_results,
+        decision.get("contributing_factors", [])
     )
-    
-    # ========================================
-    # Build Full Explanation
-    # ========================================
+
     state["explanation"] = {
         "timestamp": datetime.now().isoformat(),
         "executive_summary": executive_summary,
@@ -74,214 +35,153 @@ def explanation_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "decision": final_decision
         },
         "evidence_trail": evidence_trail,
-        "confidence": confidence_assessment,
+        "confidence": confidence,
         "recommendations": recommendations,
         "full_narrative": _generate_full_narrative(
-            input_data, executive_summary, evidence_trail, 
-            confidence_assessment, recommendations
+            input_data,
+            executive_summary,
+            evidence_trail,
+            confidence,
+            recommendations
         )
     }
-    
+
     return state
 
 
 def _generate_executive_summary(
-    input_data: Dict, 
-    risk_level: str, 
-    risk_score: float, 
+    input_data: Dict[str, Any],
+    risk_level: str,
+    risk_score: float,
     decision: str,
     reason: str
 ) -> str:
-    """Generate a concise executive summary."""
-    company = input_data.get("company", "Unknown Entity")
+    company = input_data.get("company", "Unknown")
     country = input_data.get("country", "Unknown")
     value = input_data.get("value", 0)
-    
-    decision_text = {
-        "APPROVE": "APPROVED for processing",
-        "FLAG": "FLAGGED for manual review",
-        "BLOCK": "BLOCKED from processing"
-    }.get(decision, decision)
-    
-    return f"""
-Transaction involving {company} ({country}) for {value:,.0f} has been assessed.
 
-DECISION: {decision_text}
-RISK LEVEL: {risk_level}
-RISK SCORE: {risk_score:.1%}
-
-{reason}
-""".strip()
+    return (
+        f"Transaction involving {company} ({country}) valued at {value:,.0f}.\n"
+        f"Decision: {decision}\n"
+        f"Risk Level: {risk_level}\n"
+        f"Risk Score: {risk_score:.1%}\n"
+        f"{reason}"
+    )
 
 
-def _build_evidence_trail(signals: List[Dict], specialist_results: Dict) -> List[Dict]:
-    """Build a chronological evidence trail."""
+def _build_evidence_trail(
+    signals: List[Dict[str, Any]],
+    specialist_results: Dict[str, Any]
+) -> List[Dict[str, Any]]:
     evidence = []
-    
-    # Add swarm evidence
+
     for signal in signals:
         signal_type = signal.get("type", "unknown")
         for item in signal.get("evidence", []):
             evidence.append({
-                "source": f"Swarm Analysis ({signal_type})",
+                "source": f"Swarm ({signal_type})",
                 "type": item.get("type", "observation"),
                 "finding": item.get("description", str(item)),
                 "severity": item.get("severity", "INFO"),
                 "score_impact": signal.get("score", 0)
             })
-    
-    # Add specialist evidence
+
     sanctions = specialist_results.get("sanctions", {})
     if sanctions.get("verified"):
         for item in sanctions.get("evidence", []):
             evidence.append({
-                "source": "Sanctions Verification",
+                "source": "Sanctions",
                 "type": item.get("type", "verification"),
-                "finding": f"{item.get('type', 'Hit')}: {item.get('entity', item.get('country', 'Unknown'))}",
-                "severity": item.get("severity", "HIGH"),
-                "source_authority": item.get("source", "Unknown")
+                "finding": item.get("entity") or item.get("country"),
+                "severity": item.get("severity", "HIGH")
             })
-    
+
     return evidence
 
 
-def _assess_confidence(signals: List[Dict], specialist_results: Dict) -> Dict:
-    """Assess overall confidence in the decision."""
-    confidences = []
-    
-    # Collect signal confidences
-    for signal in signals:
-        confidences.append(signal.get("confidence", 0.5))
-    
-    # Specialist results have high confidence
+def _assess_confidence(
+    signals: List[Dict[str, Any]],
+    specialist_results: Dict[str, Any]
+) -> Dict[str, Any]:
+    confidences = [s.get("confidence", 0.5) for s in signals]
+
     if specialist_results.get("sanctions", {}).get("verified"):
-        confidences.append(0.95)  # Sanctions checks are highly reliable
-    
-    if not confidences:
-        avg_confidence = 0.5
-    else:
-        avg_confidence = sum(confidences) / len(confidences)
-    
-    # Determine confidence level
-    if avg_confidence >= 0.8:
+        confidences.append(0.95)
+
+    avg = sum(confidences) / max(len(confidences), 1)
+
+    if avg >= 0.8:
         level = "HIGH"
-        description = "Decision supported by strong, verified evidence"
-    elif avg_confidence >= 0.6:
+    elif avg >= 0.6:
         level = "MEDIUM"
-        description = "Decision based on moderate evidence; additional review may be warranted"
     else:
         level = "LOW"
-        description = "Limited evidence available; manual review recommended"
-    
+
     return {
         "level": level,
-        "score": round(avg_confidence, 2),
-        "description": description,
-        "factors_analyzed": len(confidences)
+        "score": round(avg, 2),
+        "description": "Confidence derived from signal reliability"
     }
 
 
 def _generate_recommendations(
-    decision: str, 
-    risk_level: str, 
-    specialist_results: Dict,
-    contributing_factors: List[Dict]
+    decision: str,
+    risk_level: str,
+    specialist_results: Dict[str, Any],
+    contributing_factors: List[Dict[str, Any]]
 ) -> List[str]:
-    """Generate actionable recommendations."""
-    recommendations = []
-    
+    recs = []
+
     if decision == "BLOCK":
-        recommendations.append("Do not proceed with this transaction")
-        
+        recs.append("Do not proceed with transaction")
         if specialist_results.get("sanctions", {}).get("hit"):
-            recommendations.append("Report to compliance team immediately")
-            recommendations.append("Document all related parties for SAR filing")
-        
-        recommendations.append("Retain all documentation for audit purposes")
-    
+            recs.append("Escalate to compliance immediately")
+        recs.append("Document for audit")
+
     elif decision == "FLAG":
-        recommendations.append("Escalate to senior compliance officer for review")
-        recommendations.append("Request additional documentation from counterparty")
-        recommendations.append("Verify company registration and beneficial ownership")
-        
-        # Specific recommendations based on factors
-        for factor in contributing_factors:
-            if "country" in factor.get("factor", "").lower():
-                recommendations.append("Verify legitimate business purpose for country exposure")
-            if "value" in factor.get("factor", "").lower():
-                recommendations.append("Confirm source of funds documentation")
-    
-    else:  # APPROVE
-        recommendations.append("Proceed with standard processing")
+        recs.append("Manual review required")
+        recs.append("Request additional documentation")
+
+    else:
+        recs.append("Proceed with standard processing")
         if risk_level == "MEDIUM":
-            recommendations.append("Consider enhanced monitoring for this relationship")
-    
-    return list(dict.fromkeys(recommendations))  # Remove duplicates
+            recs.append("Apply enhanced monitoring")
+
+    return list(dict.fromkeys(recs))
 
 
 def _generate_full_narrative(
-    input_data: Dict,
+    input_data: Dict[str, Any],
     summary: str,
-    evidence: List[Dict],
-    confidence: Dict,
+    evidence: List[Dict[str, Any]],
+    confidence: Dict[str, Any],
     recommendations: List[str]
 ) -> str:
-    """Generate a complete narrative explanation."""
-    company = input_data.get("company", "Unknown")
-    country = input_data.get("country", "Unknown")
-    value = input_data.get("value", 0)
-    
-    narrative = f"""
-RISK ASSESSMENT REPORT
-======================
-Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    lines = [
+        "RISK ASSESSMENT REPORT",
+        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        "",
+        summary,
+        "",
+        "Evidence:"
+    ]
 
-SUBJECT
--------
-Entity: {company}
-Jurisdiction: {country}
-Transaction Value: {value:,.0f}
-
-SUMMARY
--------
-{summary}
-
-EVIDENCE ANALYSIS
------------------
-"""
-    
     if evidence:
         for i, item in enumerate(evidence, 1):
-            narrative += f"""
-{i}. [{item.get('severity', 'INFO')}] {item.get('source', 'Unknown')}
-   Finding: {item.get('finding', 'N/A')}
-"""
+            lines.append(
+                f"{i}. [{item.get('severity')}] {item.get('finding')}"
+            )
     else:
-        narrative += "No significant risk indicators identified.\n"
-    
-    narrative += f"""
-CONFIDENCE ASSESSMENT
----------------------
-Confidence Level: {confidence.get('level', 'UNKNOWN')}
-Confidence Score: {confidence.get('score', 0):.0%}
-Assessment: {confidence.get('description', 'N/A')}
+        lines.append("No significant risk indicators detected.")
 
-RECOMMENDATIONS
----------------
-"""
-    
-    for i, rec in enumerate(recommendations, 1):
-        narrative += f"{i}. {rec}\n"
-    
-    narrative += """
----
-This report was generated by the Agentic Risk Intelligence System.
-All findings are based on available data at the time of assessment.
-"""
-    
-    return narrative.strip()
+    lines.extend([
+        "",
+        f"Confidence: {confidence.get('level')} ({confidence.get('score')})",
+        "",
+        "Recommendations:"
+    ])
 
+    for i, r in enumerate(recommendations, 1):
+        lines.append(f"{i}. {r}")
 
-def get_explanation_summary(explanation: Dict[str, Any]) -> str:
-    """Get a brief summary of the explanation."""
-    return explanation.get("executive_summary", "No summary available")
+    return "\n".join(lines)

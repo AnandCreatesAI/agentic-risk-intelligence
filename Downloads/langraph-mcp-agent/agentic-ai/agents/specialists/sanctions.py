@@ -1,29 +1,9 @@
-# agents/specialists/sanctions.py
-# Sanctions Specialist Agent
-# Performs fact-based verification against official sanctions lists.
-# Produces VERIFIED FACTS, not opinions.
-
 from typing import Dict, Any
 from a2a.messages import task
 from a2a.dispatcher import dispatch
 
 
 def sanctions_agent(declaration: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Specialist agent that performs sanctions verification.
-    
-    This agent is:
-    - Fact-based: Checks against official lists (OFAC, EU, UN)
-    - Deterministic: Same input always produces same output
-    - Auditable: All checks are logged with sources
-    
-    Args:
-        declaration: The transaction/entity to verify
-        
-    Returns:
-        Verification result with evidence
-    """
-    # Create A2A task message
     msg = task(
         sender="planner",
         receiver="sanctions_agent",
@@ -33,11 +13,9 @@ def sanctions_agent(declaration: Dict[str, Any]) -> Dict[str, Any]:
             "country": declaration.get("country")
         }
     )
-    
-    # Dispatch through A2A layer (which calls MCP tools)
+
     response = dispatch(msg)
-    
-    # Handle errors
+
     if "error" in response:
         return {
             "agent": "sanctions",
@@ -46,37 +24,34 @@ def sanctions_agent(declaration: Dict[str, Any]) -> Dict[str, Any]:
             "error": response["error"],
             "evidence": []
         }
-    
-    # Extract result data
+
     result_data = response["content"]["data"]
-    
-    # Build structured verification result
+
     evidence = []
-    
-    # Add company hit evidence
+
     if result_data.get("company_hit"):
         for source in result_data.get("sources", []):
-            if source["type"] == "company_sanction":
+            if source.get("type") == "company_sanction":
                 evidence.append({
                     "type": "company_sanctions_hit",
-                    "entity": source["name"],
-                    "source": source["source"],
-                    "date_listed": source["date"],
+                    "entity": source.get("name"),
+                    "source": source.get("source"),
+                    "date_listed": source.get("date"),
                     "severity": "CRITICAL"
                 })
-    
-    # Add country hit evidence
+
     if result_data.get("country_hit"):
         for source in result_data.get("sources", []):
-            if source["type"] == "country_sanction":
+            if source.get("type") == "country_sanction":
+                severity = "HIGH" if source.get("level") == "comprehensive" else "MEDIUM"
                 evidence.append({
                     "type": "country_sanctions_hit",
-                    "country": source["country"],
-                    "sanction_level": source["level"],
-                    "source": source["source"],
-                    "severity": "HIGH" if source["level"] == "comprehensive" else "MEDIUM"
+                    "country": source.get("country"),
+                    "sanction_level": source.get("level"),
+                    "source": source.get("source"),
+                    "severity": severity
                 })
-    
+
     return {
         "agent": "sanctions",
         "verified": True,
@@ -92,25 +67,10 @@ def sanctions_agent(declaration: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def run_specialists(declaration: Dict[str, Any], tasks: list) -> Dict[str, Any]:
-    """
-    Run all required specialist agents based on planner tasks.
-    
-    Args:
-        declaration: The input data
-        tasks: List of tasks from the planner
-        
-    Returns:
-        Dictionary of specialist results
-    """
     results = {}
-    
+
     for task_name in tasks:
         if task_name == "sanctions_check":
             results["sanctions"] = sanctions_agent(declaration)
-        # Add more specialists here as needed
-        # elif task_name == "pep_check":
-        #     results["pep"] = pep_agent(declaration)
-        # elif task_name == "adverse_media":
-        #     results["adverse_media"] = adverse_media_agent(declaration)
-    
+
     return results
