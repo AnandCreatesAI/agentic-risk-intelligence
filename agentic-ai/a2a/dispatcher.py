@@ -138,6 +138,10 @@ def dispatch(message: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def dispatch_batch(messages: list) -> list:
+    return [dispatch(message) for message in messages]
+
+
 def get_message_log() -> list:
     return _message_log.copy()
 

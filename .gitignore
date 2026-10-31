@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Prevent accidental re-commit of old download path layout
+Downloads/
+
+# Root-level Python / secrets (project rules live in agentic-ai/.gitignore)
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
